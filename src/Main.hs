@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, NoMonomorphismRestriction #-}
 module Main where
 import Control.Monad
 import Control.Monad.State
@@ -6,6 +6,8 @@ import Data.Either
 import Data.Function
 import Data.List
 import Data.Monoid
+import System.Directory
+import System.Environment
 import Text.Parsec hiding (State)
 import qualified Diagrams.Backend.SVG as D
 import qualified Diagrams.Prelude as D
@@ -103,16 +105,27 @@ treeDiagram tree = evalState (aux tree) (0 :: Integer) where
             let connect = D.connect' arrowOptions nname
             return $ (node' `D.appends` [(vl, l'), (vr, r')]) # connect lname # connect rname
 
--- Testing
-sampleFormulaeStrings = ["(~a || b) && (a)", "(a) && (a)", "(a) && (~a)", "(a || ~a)", "(a || ~b || c) && (~d || e || ~f || g)"]
-sampleFormulae = rights . map (parse parseCNF "") $ sampleFormulaeStrings
-
+-- Main processing
 --main = forever (getLine >>= print . parse parseCNF "")
 
-main = do
-    forM_ (zip [0..] sampleFormulae) $ \(i, phi) -> do
-        print phi
-        let s = 1000 in D.renderSVG ("formula" <> show i <> ".svg") (D.mkSizeSpec (D.r2 (Just s, Just s))) (treeDiagram (davisPutnamTree phi))
-        putStrLn $ prettyCNF phi ""
-        putStrLn $ if satisfiable phi then "Is satisfiable" else "Is not satisfiable"
+process outDir formulae = do
+    createDirectoryIfMissing True outDir
+    forM_ (zip [0..] formulae) $ \(i, formula) -> do
+        case parse parseCNF "" formula of
+            Left err -> do
+                putStrLn $ "Syntax error while parsing formula " <> show formula
+                print err
+            Right phi -> do
+                print phi
+                putStrLn $ prettyCNF phi ""
+                putStrLn $ if satisfiable phi then "Is satisfiable" else "Is not satisfiable"
+                let outName = outDir <> "/formula" <> show i <> ".svg"
+                let s = 1000 in D.renderSVG outName (D.mkSizeSpec (D.r2 (Just s, Just s))) (treeDiagram (davisPutnamTree phi))
         putStrLn $ replicate 5 '-'
+
+main = do
+    getArgs >>= \case
+        [fname] -> (lines <$> readFile fname) >>= process (fname <> "_output")
+        _ -> do
+            name <- getProgName
+            putStrLn $ "Usage: " <> name <> " file_with_line_delimited_formulae.txt"
