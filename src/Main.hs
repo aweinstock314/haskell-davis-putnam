@@ -21,6 +21,13 @@ data CNFClause = OrNode [LogicVar]
 data CNF = AndNode [CNFClause]
     deriving (Eq, Show)
 
+-- Pretty-printers for logic formulae
+
+prettyLogicVar (Lit (Id s)) = (s++)
+prettyLogicVar (Not (Id s)) = ('!':) . (s++)
+prettyCNFClause (OrNode vars) = foldr (.) id . intersperse (" || "++) . map prettyLogicVar $ vars
+prettyCNF (AndNode clauses) = foldr (.) id . intersperse (" && "++) . map (showParen True . prettyCNFClause) $ clauses
+
 -- Parser definitions
 whitespace = many space
 
@@ -82,5 +89,6 @@ sampleFormulae = rights . map (parse parseCNF "") $ sampleFormulaeStrings
 main = do
     forM_ sampleFormulae $ \phi -> do
         print phi
+        putStrLn $ prettyCNF phi ""
         putStrLn $ if satisfiable phi then "Is satisfiable" else "Is not satisfiable"
         putStrLn $ replicate 5 '-'
